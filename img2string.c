@@ -114,6 +114,107 @@ help_print:
 return 1;
 }
 
+int caca_to_ansi(enum caca_color color)
+{
+    switch(color)
+    {
+    case CACA_BLACK: return 30;
+    case CACA_BLUE: return 34;
+    case CACA_GREEN: return 32;
+    case CACA_CYAN: return 36;
+    case CACA_RED: return 31;
+    case CACA_MAGENTA: return 35;
+    case CACA_BROWN: return 33;
+    case CACA_LIGHTGRAY: return 37;
+    case CACA_DARKGRAY: return 90;
+    case CACA_LIGHTBLUE: return 94;
+    case CACA_LIGHTGREEN: return 92;
+    case CACA_LIGHTCYAN: return 96;
+    case CACA_LIGHTRED: return 91;
+    case CACA_LIGHTMAGENTA: return 95;
+    case CACA_YELLOW: return 93;
+    case CACA_WHITE: return 97;
+    case CACA_DEFAULT: return 0;
+    default:
+    case CACA_TRANSPARENT: return 0;
+    };
+}
+
+void print_canvas(caca_canvas_t* cv)
+{
+    int w = caca_get_canvas_width(cv);
+    int h = caca_get_canvas_height(cv);
+
+    printf("\x1b[0m");
+    for(int y= 0; y < h; ++y)
+    {
+        uint32_t prev_a = 0;
+        for(int x = 0; x < w; ++x)
+        {
+            char c = caca_get_char(cv, x, y);
+            uint32_t a = caca_get_attr(cv, x, y);
+            if(a != prev_a)
+            {
+                uint8_t fg = caca_attr_to_ansi_fg(a);
+                uint8_t bg = caca_attr_to_ansi_bg(a);
+
+                if(bg == CACA_TRANSPARENT)
+                {
+                    printf("\x1b[0m");
+                    if(fg != CACA_TRANSPARENT)
+                        printf("\x1b[%dm", caca_to_ansi(fg));
+                }
+                else printf(
+                    "\x1b[%d;%dm",
+                    caca_to_ansi(fg),
+                    caca_to_ansi(bg)+10
+                );
+            }
+            putchar(c);
+            prev_a = a;
+        }
+        printf("\x1b[0m\n");
+    }
+}
+
+void stringify_canvas(caca_canvas_t* cv)
+{
+    int w = caca_get_canvas_width(cv);
+    int h = caca_get_canvas_height(cv);
+
+    printf("\"\\x1b[0m");
+    for(int y= 0; y < h; ++y)
+    {
+        if(y != 0) putchar('\"');
+
+        uint32_t prev_a = 0;
+        for(int x = 0; x < w; ++x)
+        {
+            char c = caca_get_char(cv, x, y);
+            uint32_t a = caca_get_attr(cv, x, y);
+            if(a != prev_a)
+            {
+                uint8_t fg = caca_attr_to_ansi_fg(a);
+                uint8_t bg = caca_attr_to_ansi_bg(a);
+
+                if(bg == CACA_TRANSPARENT)
+                {
+                    printf("\\x1b[0m");
+                    if(fg != CACA_TRANSPARENT)
+                        printf("\\x1b[%dm", caca_to_ansi(fg));
+                }
+                else printf(
+                    "\\x1b[%d;%dm",
+                    caca_to_ansi(fg),
+                    caca_to_ansi(bg)+10
+                );
+            }
+            putchar(c);
+            prev_a = a;
+        }
+        printf("\\x1b[0m\\n\"\n");
+    }
+}
 
 int main(int argc, char** argv)
 {
@@ -131,16 +232,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    /*printf(
-        "(%s mode) %dx%d, (%f): %s\n",
-        options.preview ? "preview" : "string",
-        options.width,
-        options.height,
-        options.gamma,
-        options.image
-    );*/
-
     caca_canvas_t* canvas = caca_create_canvas(options.width, options.height);
+    caca_set_color_ansi(canvas, CACA_TRANSPARENT, CACA_TRANSPARENT);
+    caca_clear_canvas(canvas);
     caca_dither_t* dither = caca_create_dither(
         32,
         in_w,
@@ -164,11 +258,13 @@ int main(int argc, char** argv)
         input_data
     );
 
-    size_t bytes = 0;
+    if(options.preview) print_canvas(canvas);
+    else stringify_canvas(canvas);
+    /*size_t bytes = 0;
     char* art = caca_export_canvas_to_memory(canvas, "ansi", &bytes);
 
     printf("%.*s\n", (int)bytes, art);
-    free(art);
+    free(art);*/
 
     caca_free_dither(dither);
     caca_free_canvas(canvas);
