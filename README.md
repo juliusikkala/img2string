@@ -3,7 +3,8 @@
 img2string lets you generate ASCII ANSI art directly in the format you need it!
 It can generate ready-to-print strings in several programming languages. If
 there is a programming language that is not yet supported and you'd like it to
-be, create an issue.
+be, create an issue. img2string supports several image formats and even
+transparency!
 
 ## Dependencies
 
