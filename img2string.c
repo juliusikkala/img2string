@@ -25,20 +25,22 @@
 #include "extern/stb_image.h"
 #define HELP 1
 #define WIDTH 'w'
-#define HEIGHT 'h'
+#define RATIO 'r'
 #define GAMMA 'g'
-#define ALGORITHM 'a'
+#define DITHER 'd'
+#define ANTIALIAS 'a'
 #define PREVIEW 'p'
 
 struct
 {
     int width;
-    int height;
+    float ratio;
     float gamma;
     const char* image;
-    const char* algorithm;
+    const char* dither;
+    int antialias;
     int preview;
-} options = { 80, 24, 0.5f, NULL, "none", 0 };
+} options = { 80, 0.5f, 0.5f, NULL, "none", 0, 0 };
 
 int parse_args(int argc, char** argv)
 {
@@ -48,14 +50,14 @@ int parse_args(int argc, char** argv)
     struct option longopts[] = {
         { "help", no_argument, NULL, HELP },
         { "width", required_argument, NULL, WIDTH },
-        { "height", required_argument, NULL, HEIGHT },
+        { "ratio", required_argument, NULL, RATIO },
         { "gamma", required_argument, NULL, GAMMA },
-        { "algorithm", required_argument, NULL, ALGORITHM },
-        { "preview", no_argument, &options.preview, 'p' },
+        { "dither", required_argument, NULL, DITHER },
+        { "preview", no_argument, &options.preview, PREVIEW }
     };
 
     int val = 0;
-    while((val = getopt_long(argc, argv, "w:h:g:a:p", longopts, &indexptr)) != -1)
+    while((val = getopt_long(argc, argv, "w:r:g:d:ap", longopts, &indexptr)) != -1)
     {
         switch(val)
         {
@@ -63,15 +65,15 @@ int parse_args(int argc, char** argv)
             options.width = strtoul(optarg, &endptr, 10);
             if(*endptr != 0) goto help_print;
             break;
-        case HEIGHT:
-            options.height = strtoul(optarg, &endptr, 10);
+        case RATIO:
+            options.ratio = strtod(optarg, &endptr);
             if(*endptr != 0) goto help_print;
             break;
         case GAMMA:
             options.gamma = strtod(optarg, &endptr);
             if(*endptr != 0) goto help_print;
             break;
-        case ALGORITHM:
+        case DITHER:
             if(
                 strcmp(optarg, "none") != 0 &&
                 strcmp(optarg, "ordered2") != 0 &&
@@ -80,7 +82,10 @@ int parse_args(int argc, char** argv)
                 strcmp(optarg, "random") != 0 &&
                 strcmp(optarg, "fstein") != 0
             ) goto help_print;
-            options.algorithm = optarg;
+            options.dither = optarg;
+            break;
+        case ANTIALIAS:
+            options.antialias = 1;
             break;
         case PREVIEW:
             options.preview = 1;
@@ -101,14 +106,16 @@ int parse_args(int argc, char** argv)
 
 help_print:
     printf(
-        "Usage: %s [-w width] [-h height] [-g gamma] [-a algorithm] [-p] image\n"
-        "algorithm can be one of the following:\n"
+        "Usage: %s [-w width] [-g gamma] [-d dither] [-r pixelratio] [-a] [-p] image\n"
+        "dither can be one of the following:\n"
         "\tnone (default)\n"
         "\tordered2\n"
         "\tordered4\n"
         "\tordered8\n"
         "\trandom\n"
-        "\tfstein\n",
+        "\tfstein\n"
+        "pixelratio is the aspect ratio of a pixel.\n"
+        "-a enables antialiasing.\n",
         argv[0]
     );
 return 1;
@@ -232,7 +239,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    caca_canvas_t* canvas = caca_create_canvas(options.width, options.height);
+    int height = (int)(options.width*options.ratio*in_h/in_w);
+
+    caca_canvas_t* canvas = caca_create_canvas(options.width, height);
     caca_set_color_ansi(canvas, CACA_TRANSPARENT, CACA_TRANSPARENT);
     caca_clear_canvas(canvas);
     caca_dither_t* dither = caca_create_dither(
@@ -246,25 +255,21 @@ int main(int argc, char** argv)
         0xFF000000
     );
     caca_set_dither_gamma(dither, options.gamma);
-    caca_set_dither_algorithm(dither, options.algorithm);
+    caca_set_dither_algorithm(dither, options.dither);
+    caca_set_dither_antialias(dither, options.antialias ? "prefilter" : "none");
 
     caca_dither_bitmap(
         canvas,
         0,
         0,
         options.width,
-        options.height,
+        height,
         dither,
         input_data
     );
 
     if(options.preview) print_canvas(canvas);
     else stringify_canvas(canvas);
-    /*size_t bytes = 0;
-    char* art = caca_export_canvas_to_memory(canvas, "ansi", &bytes);
-
-    printf("%.*s\n", (int)bytes, art);
-    free(art);*/
 
     caca_free_dither(dither);
     caca_free_canvas(canvas);
